@@ -91,6 +91,14 @@ export async function registerRoutes(
         return res.status(400).json({ message: "User already exists with this email" });
       }
       const user = await storage.createUser(userData);
+      
+      // Send welcome email
+      notifications.sendEmail(
+        user.email,
+        "Welcome to ChatPadel! 🎾",
+        `Hello ${user.fullName},\n\nWelcome to ChatPadel! Your account has been successfully created.\n\nYou can now:\n- Join matches with other padel players\n- Get coaching tips from our AI Coach\n- Connect with the padel community\n\nEnjoy your padel journey!\n\nBest regards,\nThe ChatPadel Team`
+      ).catch(err => console.error("Welcome email failed", err));
+      
       res.status(201).json(user);
     } catch (err) {
       if (err instanceof z.ZodError) {

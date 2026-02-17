@@ -1,8 +1,10 @@
 import nodemailer from "nodemailer";
+import twilio from "twilio";
 
 /**
  * Simulated and Real notification service for ChatPadel.
- * Automatically switches to Nodemailer if SMTP credentials are provided in .env
+ * Automatically switches to Nodemailer for email if SMTP credentials are provided in .env
+ * Automatically switches to Twilio for SMS if Twilio credentials are provided in .env
  */
 
 // Configure Nodemailer Transporter
@@ -16,7 +18,13 @@ const transporter = process.env.SMTP_HOST ? nodemailer.createTransport({
     },
 }) : null;
 
+// Configure Twilio Client
+const twilioClient = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
+    ? twilio(process.env.TWILIO_ACCOUNT_SID, process.env.TWILIO_AUTH_TOKEN)
+    : null;
+
 const fromEmail = process.env.FROM_EMAIL || "noreply@chatpadel.com";
+const fromPhone = process.env.TWILIO_PHONE_NUMBER || "";
 
 export const notifications = {
     async sendEmail(to: string, subject: string, content: string) {
@@ -46,6 +54,31 @@ export const notifications = {
         return true;
     },
 
+    async sendSMS(phoneNumber: string, message: string) {
+        if (twilioClient && fromPhone) {
+            try {
+                await twilioClient.messages.create({
+                    body: message,
+                    from: fromPhone,
+                    to: phoneNumber,
+                });
+                console.log(`[SMS SERVICE] ✅ Real SMS sent to: ${phoneNumber}`);
+                return true;
+            } catch (error) {
+                console.error(`[SMS SERVICE] ❌ Failed to send real SMS:`, error);
+                // Fallback to console log on error
+            }
+        }
+
+        // Console Fallback (Simulated)
+        console.log(`\n[SMS SERVICE] 📱 (FALLBACK) Sending SMS to: ${phoneNumber}`);
+        console.log(`[SMS SERVICE] Content: ${message}\n`);
+
+        // Simulate network delay
+        await new Promise(resolve => setTimeout(resolve, 300));
+        return true;
+    },
+
     async sendMatchJoinedEmail(email: string, fullName: string, matchDetails: { location: string; date: string; time: string }) {
         const subject = `🎾 Match Confirmation - ${matchDetails.location}`;
         const content = `Hello ${fullName}, you have successfully joined the match at ${matchDetails.location} on ${matchDetails.date} at ${matchDetails.time}. See you there!`;
@@ -54,12 +87,8 @@ export const notifications = {
     },
 
     async sendMatchJoinedSMS(phoneNumber: string, matchDetails: { location: string; date: string; time: string }) {
-        console.log(`\n[SMS SERVICE] 📱 Sending SMS to: ${phoneNumber}`);
-        console.log(`[SMS SERVICE] Content: ChatPadel: You're in! Match confirmed @ ${matchDetails.location}, ${matchDetails.date} ${matchDetails.time}. 🎾\n`);
-
-        // Simulate network delay
-        await new Promise(resolve => setTimeout(resolve, 300));
-        return true;
+        const message = `ChatPadel: You're in! Match confirmed @ ${matchDetails.location}, ${matchDetails.date} ${matchDetails.time}. 🎾`;
+        return this.sendSMS(phoneNumber, message);
     },
 
     async sendResetPasswordEmail(email: string, resetLink: string) {
